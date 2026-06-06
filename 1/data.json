@@ -1,0 +1,150 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "strategy": "mom_6m_t20",
+    "account_id": "1",
+    "account_label": "百萬富婆",
+    "generated_at": "2026-06-06T12:01:29Z",
+    "trading_date": "2026-06-06",
+    "dry_run": false,
+    "strategy_status": "active",
+    "strategy_start_date": "2026-06-06",
+    "previous_strategy": null,
+    "accent_color": "#3b82f6",
+    "same_strategy_accounts": [
+      {
+        "id": "1",
+        "label": "百萬富婆"
+      }
+    ]
+  },
+  "summary": {
+    "nav": 1050094.44,
+    "cash": 941318.58,
+    "initial_nav": 1050094.44,
+    "inception_date": "2026-06-06",
+    "today_change": 0.0,
+    "today_change_pct": 0.0,
+    "total_return": 0.0,
+    "total_return_pct": 0.0,
+    "total_return_pct_twr": 0.0,
+    "net_contribution": 0.0,
+    "total_deposited": 0.0,
+    "total_withdrawn": 0.0,
+    "investment_gain": 0.0,
+    "ytd_return_pct": null,
+    "monthly_return_pct": null,
+    "max_drawdown_pct": 0.0,
+    "sharpe_ratio": null,
+    "total_paused_days": 0,
+    "is_paused": false,
+    "paused_since": null
+  },
+  "strategy_card": {
+    "name": "MOM-6m-T20",
+    "description": "科技25宇宙：市值前20候選池，依6個月動能留前10，等權10%，月度再平衡",
+    "tags": [
+      "momentum",
+      "tech",
+      "monthly",
+      "top10"
+    ],
+    "benchmark": "QQQ",
+    "universe_summary": "custom universe",
+    "selection_summary": "多因子加權百分位數，持股 10 檔（等權重，觀察名單 20，最低分 70）",
+    "rebalancing_summary": "每月 09:45 美東",
+    "risk_highlights": [
+      "單倉上限 10%"
+    ],
+    "ranking_factors": [
+      {
+        "name": "price_momentum_6m",
+        "weight": "100%",
+        "direction": "↑"
+      }
+    ],
+    "filter_summary": {}
+  },
+  "portfolio": {
+    "label": "動能前10",
+    "symbols": [
+      "AVGO"
+    ],
+    "rebalance_count": 0
+  },
+  "positions": [
+    {
+      "symbol": "AVGO",
+      "qty": 282.0,
+      "avg_entry_price": 394.731383,
+      "current_price": 385.73,
+      "market_value": 108775.86,
+      "unrealized_pl": -2538.39,
+      "unrealized_plpc": -2.28,
+      "weight": 10.3587,
+      "in_portfolio": true
+    }
+  ],
+  "nav_history": [
+    {
+      "date": "2026-06-06",
+      "nav": 1050094.44
+    }
+  ],
+  "drawdown": {
+    "dates": [
+      "2026-06-06"
+    ],
+    "portfolio": [
+      0.0
+    ],
+    "nasdaq": [
+      null
+    ],
+    "sp500": [
+      null
+    ]
+  },
+  "trade_log": [
+    {
+      "date": "2026-06-06",
+      "nav": 1050094.44,
+      "trades_count": 0,
+      "portfolio": [
+        "AVGO"
+      ],
+      "orders": []
+    }
+  ],
+  "rankings": {
+    "type": "market_cap_list",
+    "label": "市值前20候選池",
+    "items": [
+      {
+        "rank": 1,
+        "symbol": "AVGO",
+        "price": 385.73,
+        "change_pct": -2.28,
+        "market_cap_b": 100.0,
+        "in_portfolio": true
+      }
+    ]
+  },
+  "events": [],
+  "email": {
+    "subject": "[MOM-6m-T20 #1] 2026-06-06 NAV $1,050,094 (+0.00%)",
+    "preheader": "帳戶 #1 · 2026-06-06 · NAV $1,050,094",
+    "dashboard_url": "https://itemhsu.github.io/tech-rebalance-dashboard/mvp_dashboard.html?a=1",
+    "sections_rendered": [
+      "header",
+      "kpi",
+      "strategy_card",
+      "positions_table",
+      "rankings",
+      "trades",
+      "cta",
+      "strategy_history",
+      "footer"
+    ]
+  }
+}

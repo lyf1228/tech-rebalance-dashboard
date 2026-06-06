@@ -1,1 +1,18 @@
-{"accounts": [{"id": "1", "label": "百萬富婆", "strategy": "mom_6m_t20", "enabled": true}]}
+{
+  "accounts": [
+    {
+      "id": "1",
+      "label": "百萬富婆",
+      "strategy": "mom_6m_t20",
+      "broker": "alpaca",
+      "environment": "paper",
+      "enabled": true,
+      "secret_prefix": "ACC1",
+      "data_dir": "data/1",
+      "use_new_runner": true,
+      "email_recipients": [
+        "lyf1228@gmail.com"
+      ]
+    }
+  ]
+}
