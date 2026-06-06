@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Momentum Backtest Tool v2</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#020617;color:#e2e8f0;font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;}
+
+/* Sidebar */
+.sidebar{position:fixed;top:0;left:0;width:230px;height:100vh;background:#0a0f1e;
+         border-right:1px solid #1e293b;overflow-y:auto;padding:14px 0;z-index:50;}
+.sidebar h1{font-size:14px;color:#3b82f6;padding:0 16px 12px;border-bottom:1px solid #1e293b;}
+.sidebar h1 small{display:block;font-size:10px;color:#475569;margin-top:2px;font-weight:400;}
+.sidebar h3{font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:1.2px;padding:14px 16px 4px;}
+.sidebar .grp{padding:0 12px;}
+.s-row{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:4px;cursor:pointer;}
+.s-row:hover{background:#0f172a;}
+.s-row input{accent-color:#3b82f6;}
+.s-row .dot{width:10px;height:10px;border-radius:50%;flex:none;}
+.s-row .lbl{font-size:11px;color:#cbd5e1;flex:1;}
+.s-actions{padding:10px 16px;border-top:1px solid #1e293b;margin-top:8px;}
+.s-actions button{display:block;width:100%;background:#0f172a;border:1px solid #1e293b;
+   color:#94a3b8;padding:5px;margin:3px 0;font-size:11px;border-radius:4px;cursor:pointer;}
+.s-actions button:hover{border-color:#3b82f6;color:#3b82f6;}
+
+/* Main */
+.main{margin-left:230px;padding:0 22px 60px;}
+
+/* Sticky global control bar */
+.ctrl-bar{position:sticky;top:0;background:#0a0f1e;border-bottom:2px solid #1e3a5f;
+          padding:12px 0;z-index:40;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+          margin:0 -22px 18px;padding-left:22px;padding-right:22px;}
+.ctrl-bar .lbl{font-size:12px;font-weight:800;color:#3b82f6;}
+.ctrl-bar select{background:#0f172a;border:1px solid #3b82f6;color:#e2e8f0;
+   padding:7px 12px;border-radius:6px;font-size:13px;cursor:pointer;}
+.ctrl-bar .range-disp{background:#1e293b;padding:5px 14px;border-radius:14px;
+   font-size:11px;color:#94a3b8;}
+.ctrl-bar .tags{display:flex;gap:6px;flex-wrap:wrap;flex:1;}
+.tag{font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid;background:transparent;}
+
+/* Hero */
+.hero{padding:20px 0 12px;}
+.hero h2{font-size:18px;color:#e2e8f0;}
+.hero p{color:#64748b;font-size:12px;margin-top:3px;}
+
+/* Section card */
+.card{background:#0a0f1e;border:1px solid #1e293b;border-radius:10px;
+      padding:16px 18px;margin-bottom:18px;}
+.card-head{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+.card-title{font-size:13px;font-weight:800;color:#e2e8f0;}
+.card-spacer{flex:1;}
+.btn-mini{background:#1e293b;border:1px solid #334155;color:#94a3b8;
+   font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;}
+.btn-mini:hover{border-color:#3b82f6;color:#3b82f6;}
+.chk-row{display:flex;gap:5px;flex-wrap:wrap;}
+.chk{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid;
+     border-radius:4px;cursor:pointer;font-size:10px;background:transparent;}
+.chk input{accent-color:currentColor;margin:0;}
+
+/* KPI */
+.kpi-grid{display:flex;gap:10px;flex-wrap:wrap;}
+.kpi{background:#0f172a;border:1px solid;border-radius:8px;padding:11px 14px;min-width:158px;flex:1;}
+.kpi .k-name{font-size:10px;font-weight:700;}
+.kpi .k-val{font-size:22px;font-weight:900;margin:3px 0 1px;}
+.kpi .k-row{display:flex;justify-content:space-between;font-size:10px;color:#64748b;}
+
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{background:#0f172a;color:#64748b;padding:8px 10px;text-align:right;
+   font-size:10px;text-transform:uppercase;letter-spacing:.5px;
+   border-bottom:1px solid #1e293b;cursor:pointer;user-select:none;}
+th:first-child,td:first-child{text-align:left;}
+th:hover{color:#3b82f6;}
+td{padding:7px 10px;border-bottom:1px solid #0d1526;text-align:right;}
+td:first-child{font-weight:700;}
+.cg{color:#86efac;} .cr{color:#f87171;} .cy{color:#fcd34d;}
+
+/* Empty */
+.empty{text-align:center;color:#475569;padding:60px 0;font-size:13px;}
+
+/* Heatmap collapsible */
+details summary{cursor:pointer;list-style:none;}
+details summary::-webkit-details-marker{display:none;}
+details[open] .arr{transform:rotate(90deg);}
+.arr{display:inline-block;transition:transform .2s;color:#475569;}
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <h1>📊 Momentum Tool <small>v2.0 · 資料驅動</small></h1>
+
+  <h3>策略選擇（全域）</h3>
+  <div id="sidebar-strategies"></div>
+
+  <div class="s-actions">
+    <button onclick="sbSelectAll()">全選</button>
+    <button onclick="sbClearAll()">全消</button>
+    <button onclick="sbSelectGroup('momentum')">只選動能</button>
+    <button onclick="sbSelectGroup('benchmark')">只選基準</button>
+    <button onclick="sbResetDefault()">重設預設</button>
+  </div>
+</nav>
+
+<main class="main">
+
+  <!-- Global control bar -->
+  <div class="ctrl-bar">
+    <span class="lbl">🗓️ 回測區間</span>
+    <select id="range-select" onchange="onRangeChange(this.value)">
+      <option value="">全期</option>
+      <option value="5">最近 5 年</option>
+      <option value="10" selected>最近 10 年</option>
+      <option value="15">最近 15 年</option>
+      <option value="20">最近 20 年</option>
+      <option value="25">最近 25 年</option>
+    </select>
+    <span id="range-display" class="range-disp">載入中…</span>
+    <div class="tags" id="active-tags"></div>
+  </div>
+
+  <div class="hero">
+    <h2>Momentum 動能策略回測</h2>
+    <p>資料驅動 · 每圖獨立策略控制 · 純靜態 HTML</p>
+  </div>
+
+  <!-- ② KPI -->
+  <div class="card" id="kpi-card">
+    <div class="card-head">
+      <span class="card-title">② KPI 摘要</span>
+      <span class="card-spacer"></span>
+      <span style="font-size:10px;color:#475569;">依側欄全域勾選</span>
+    </div>
+    <div id="kpi-grid" class="kpi-grid"></div>
+  </div>
+
+  <!-- ③ NAV -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">③ NAV 走勢圖</span>
+      <button class="btn-mini" onclick="chartSelectAll('nav-all')">全選</button>
+      <button class="btn-mini" onclick="chartClearAll('nav-all')">全消</button>
+      <div class="chk-row" id="nav-all-checks"></div>
+    </div>
+    <div id="nav-all" style="height:380px;"></div>
+  </div>
+
+  <!-- ④ DD -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">④ 回撤圖（Drawdown）</span>
+      <button class="btn-mini" onclick="chartSelectAll('dd-all')">全選</button>
+      <button class="btn-mini" onclick="chartClearAll('dd-all')">全消</button>
+      <div class="chk-row" id="dd-all-checks"></div>
+    </div>
+    <div id="dd-all" style="height:300px;"></div>
+  </div>
+
+  <!-- ⑤ Annual -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">⑤ 年度報酬柱狀圖</span>
+      <button class="btn-mini" onclick="chartSelectAll('annual-all')">全選</button>
+      <button class="btn-mini" onclick="chartClearAll('annual-all')">全消</button>
+      <div class="chk-row" id="annual-all-checks"></div>
+    </div>
+    <div id="annual-all" style="height:320px;"></div>
+  </div>
+
+  <!-- ⑥ RR -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">⑥ 風險 / 報酬散點圖</span>
+      <button class="btn-mini" onclick="chartSelectAll('rr-chart')">全選</button>
+      <button class="btn-mini" onclick="chartClearAll('rr-chart')">全消</button>
+      <div class="chk-row" id="rr-chart-checks"></div>
+    </div>
+    <div id="rr-chart" style="height:380px;"></div>
+  </div>
+
+  <!-- ⑦ Metrics -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">⑦ 績效指標表</span>
+      <span class="card-spacer"></span>
+      <span class="range-disp" id="metrics-range-lbl">全期</span>
+    </div>
+    <div id="metrics-table-wrap"></div>
+  </div>
+
+  <!-- ⑧ Heatmap -->
+  <div class="card">
+    <details>
+      <summary class="card-head" style="margin-bottom:0;">
+        <span class="card-title"><span class="arr">▶</span> ⑧ 月度報酬熱力圖</span>
+        <span class="card-spacer"></span>
+        <span style="font-size:10px;color:#475569;">每策略一張（預設收合）</span>
+      </summary>
+      <div id="heatmaps" style="padding-top:14px;"></div>
+    </details>
+  </div>
+
+  <div id="empty-state" class="empty" style="display:none;">
+    尚無策略資料 — 請先執行 <code>python engine/run_all.py</code> 產生 JSON。
+  </div>
+
+</main>
+
+<script>
+// ────────────────────────────────────────────────
+// 全域狀態
+// ────────────────────────────────────────────────
+const STORE = {};            // {id: strategyJSON}
+const MANIFEST = { strategies: [] };
+const SIDEBAR_ON = {};       // {id: bool} 全域勾選
+const CHART_ON = {            // 每圖獨立勾選 {chartId: {id: bool}}
+  'nav-all': {}, 'dd-all': {}, 'annual-all': {}, 'rr-chart': {},
+};
+let CURRENT_X0 = null, CURRENT_X1 = null;
+
+// ────────────────────────────────────────────────
+// 載入 manifest + 所有策略 JSON
+// 自動偵測路徑（本機 tool_v2/tool/ → ../results/；GitHub Pages → ./results/）
+// ────────────────────────────────────────────────
+let RESULTS_BASE = './results/';
+async function _detectBase() {
+  for (const base of ['./results/', '../results/']) {
+    try {
+      const r = await fetch(base + 'manifest.json?_=' + Date.now(), {cache:'no-store'});
+      if (r.ok) { RESULTS_BASE = base; return await r.json(); }
+    } catch (_) {}
+  }
+  throw new Error('manifest.json not found at any expected path');
+}
+
+async function loadAll() {
+  let mf;
+  try {
+    mf = await _detectBase();
+  } catch (e) {
+    document.getElementById('empty-state').style.display = 'block';
+    console.error(e);
+    return;
+  }
+  MANIFEST.strategies = mf.strategies || [];
+
+  const fetches = MANIFEST.strategies.map(s =>
+    fetch(RESULTS_BASE + s.file + '?_=' + Date.now(), {cache:'no-store'})
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (j) STORE[s.id] = j; })
+      .catch(e => console.warn('load failed', s.id, e))
+  );
+  await Promise.all(fetches);
+
+  // 初始全域勾選 (全部開啟)
+  MANIFEST.strategies.forEach(s => SIDEBAR_ON[s.id] = true);
+
+  buildSidebar();
+  applyRangeFromSelect();
+}
+
+// ────────────────────────────────────────────────
+// 側欄
+// ────────────────────────────────────────────────
+function buildSidebar() {
+  const wrap = document.getElementById('sidebar-strategies');
+  const groups = {};
+  MANIFEST.strategies.forEach(s => {
+    (groups[s.group] = groups[s.group] || []).push(s);
+  });
+  const ord = ['momentum', 'diversified', 'benchmark', 'other'];
+  const names = { momentum: '📈 Momentum', diversified: '🎯 Diversified', benchmark: '📊 Benchmark', other: '🔧 Other' };
+  let html = '';
+  ord.forEach(g => {
+    if (!groups[g]) return;
+    html += `<div class="grp"><div style="font-size:10px;color:#475569;padding:4px 6px;">${names[g]}</div>`;
+    groups[g].sort((a,b)=>a.order-b.order).forEach(s => {
+      html += `<label class="s-row">
+        <input type="checkbox" ${SIDEBAR_ON[s.id]?'checked':''} onchange="onSidebarChange('${s.id}',this.checked)">
+        <span class="dot" style="background:${s.color}"></span>
+        <span class="lbl" style="color:${s.color};cursor:help"
+          onmouseenter="showSpecTip(event,'${s.id}')"
+          onmouseleave="hideSpecTip()">${s.label}</span>
+      </label>`;
+    });
+    html += `</div>`;
+  });
+  wrap.innerHTML = html;
+}
+function onSidebarChange(id, checked) {
+  SIDEBAR_ON[id] = checked;
+  // 同步到每圖（新增策略時自動 on）
+  Object.keys(CHART_ON).forEach(cid => {
+    if (CHART_ON[cid][id] === undefined) CHART_ON[cid][id] = checked;
+    else CHART_ON[cid][id] = checked && CHART_ON[cid][id];
+    if (!checked) CHART_ON[cid][id] = false;
+  });
+  // 啟用時補全
+  if (checked) Object.keys(CHART_ON).forEach(cid => { CHART_ON[cid][id] = true; });
+  refreshAll();
+}
+function sbSelectAll() { MANIFEST.strategies.forEach(s => SIDEBAR_ON[s.id] = true); rebuildAllControls(); refreshAll(); }
+function sbClearAll() { MANIFEST.strategies.forEach(s => SIDEBAR_ON[s.id] = false); rebuildAllControls(); refreshAll(); }
+function sbSelectGroup(g) {
+  MANIFEST.strategies.forEach(s => SIDEBAR_ON[s.id] = (s.group === g));
+  rebuildAllControls(); refreshAll();
+}
+function sbResetDefault() { sbSelectAll(); }
+function rebuildAllControls() {
+  buildSidebar();
+  Object.keys(CHART_ON).forEach(cid => {
+    MANIFEST.strategies.forEach(s => { CHART_ON[cid][s.id] = SIDEBAR_ON[s.id]; });
+    buildChartControls(cid);
+  });
+}
+
+// ────────────────────────────────────────────────
+// 每圖控制列
+// ────────────────────────────────────────────────
+function buildChartControls(chartId) {
+  const wrap = document.getElementById(chartId + '-checks');
+  if (!wrap) return;
+  let html = '';
+  MANIFEST.strategies.forEach(s => {
+    if (!SIDEBAR_ON[s.id]) return;  // 側欄沒勾就不出現
+    if (CHART_ON[chartId][s.id] === undefined) CHART_ON[chartId][s.id] = true;
+    const on = CHART_ON[chartId][s.id];
+    html += `<label class="chk" style="color:${s.color};border-color:${s.color}">
+      <input type="checkbox" ${on?'checked':''} onchange="onChartCheck('${chartId}','${s.id}',this.checked)">
+      ${s.label}
+    </label>`;
+  });
+  wrap.innerHTML = html;
+}
+function onChartCheck(chartId, id, checked) {
+  CHART_ON[chartId][id] = checked;
+  redrawChart(chartId);
+}
+function chartSelectAll(chartId) {
+  MANIFEST.strategies.forEach(s => { if (SIDEBAR_ON[s.id]) CHART_ON[chartId][s.id] = true; });
+  buildChartControls(chartId);
+  redrawChart(chartId);
+}
+function chartClearAll(chartId) {
+  MANIFEST.strategies.forEach(s => CHART_ON[chartId][s.id] = false);
+  buildChartControls(chartId);
+  redrawChart(chartId);
+}
+
+// ────────────────────────────────────────────────
+// 時間範圍
+// ────────────────────────────────────────────────
+function onRangeChange(val) { applyRangeFromSelect(val); }
+function applyRangeFromSelect(val) {
+  if (val === undefined) val = document.getElementById('range-select').value;
+  if (!val) { CURRENT_X0 = null; CURRENT_X1 = null; }
+  else {
+    const n = parseInt(val, 10);
+    const end = new Date();
+    const start = new Date(end); start.setFullYear(start.getFullYear() - n);
+    CURRENT_X0 = start.toISOString().slice(0,10);
+    CURRENT_X1 = end.toISOString().slice(0,10);
+  }
+  refreshAll();
+}
+function rangeLabel() {
+  if (!CURRENT_X0) return '全期';
+  const yrs = ((new Date(CURRENT_X1)-new Date(CURRENT_X0))/(365.25*86400e3)).toFixed(1);
+  return `${CURRENT_X0.slice(0,7)} → ${CURRENT_X1.slice(0,7)}（${yrs} 年）`;
+}
+
+// ────────────────────────────────────────────────
+// 篩選資料 + 重算 metrics（在時間區間內）
+// ────────────────────────────────────────────────
+function filterSeries(stratJson) {
+  const ns = stratJson.nav_series;
+  let dates = [], nav = [];
+  for (let i=0;i<ns.length;i++) {
+    const d = ns[i][0], v = ns[i][1];
+    if (CURRENT_X0 && d < CURRENT_X0) continue;
+    if (CURRENT_X1 && d > CURRENT_X1) continue;
+    dates.push(d); nav.push(v);
+  }
+  if (nav.length && nav[0] !== 0) {
+    const base = nav[0];
+    nav = nav.map(v => v/base*100000);
+  }
+  return { dates, nav };
+}
+function recomputeMetrics(filt) {
+  const {dates, nav} = filt;
+  if (nav.length < 2) return {cagr:null,total_return:null,volatility:null,sharpe:null,max_drawdown:0,calmar:null,final_value:nav[0]||null};
+  const yrs = (new Date(dates[dates.length-1]) - new Date(dates[0])) / (365.25*86400e3);
+  const cagr = yrs > 0 ? Math.pow(nav[nav.length-1]/nav[0], 1/yrs)-1 : 0;
+  const tr = nav[nav.length-1]/nav[0]-1;
+  const rs = [];
+  for (let i=1;i<nav.length;i++) if (nav[i-1]>0) rs.push(nav[i]/nav[i-1]-1);
+  let mean = 0; rs.forEach(r => mean+=r); mean /= (rs.length||1);
+  let v=0; rs.forEach(r => v+=(r-mean)**2); v = v/((rs.length-1)||1);
+  const sd = Math.sqrt(v);
+  const vol = sd * Math.sqrt(252);
+  const sharpe = sd>0 ? mean/sd*Math.sqrt(252) : null;
+  let peak=nav[0], dd=0;
+  for (const x of nav) { if (x>peak) peak=x; if (peak>0){const d=(x-peak)/peak; if(d<dd) dd=d;} }
+  return {cagr,total_return:tr,volatility:vol,sharpe,max_drawdown:dd,calmar:dd<0?cagr/Math.abs(dd):null,final_value:nav[nav.length-1]};
+}
+
+// ────────────────────────────────────────────────
+// 更新所有圖表 + KPI + 表 + tags + range label
+// ────────────────────────────────────────────────
+function refreshAll() {
+  document.getElementById('range-display').textContent = rangeLabel();
+  document.getElementById('metrics-range-lbl').textContent = rangeLabel();
+  updateActiveTags();
+
+  Object.keys(CHART_ON).forEach(cid => buildChartControls(cid));
+
+  const enabledFilt = {};
+  MANIFEST.strategies.forEach(s => {
+    if (SIDEBAR_ON[s.id] && STORE[s.id]) {
+      enabledFilt[s.id] = filterSeries(STORE[s.id]);
+    }
+  });
+  drawKPI(enabledFilt);
+  drawTable(enabledFilt);
+  drawHeatmaps(enabledFilt);
+
+  Object.keys(CHART_ON).forEach(cid => redrawChart(cid));
+}
+function updateActiveTags() {
+  const wrap = document.getElementById('active-tags');
+  let html = '';
+  MANIFEST.strategies.forEach(s => {
+    if (!SIDEBAR_ON[s.id]) return;
+    html += `<span class="tag" style="color:${s.color};border-color:${s.color};cursor:help;"
+      data-sid="${s.id}"
+      onmouseenter="showSpecTip(event,'${s.id}')"
+      onmouseleave="hideSpecTip()">${s.label}</span>`;
+  });
+  wrap.innerHTML = html || '<span style="font-size:10px;color:#475569">未選任何策略</span>';
+}
+
+// ────────────────────────────────────────────────
+// Spec tooltip — hover 顯示中文摘要 + next_picks
+// ────────────────────────────────────────────────
+function _ensureTip() {
+  let tip = document.getElementById('spec-tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'spec-tip';
+    tip.style.cssText = `position:fixed;z-index:9999;background:#0f172a;
+      border:1px solid #334155;border-radius:8px;padding:12px 14px;
+      max-width:360px;font-size:11px;color:#cbd5e1;line-height:1.55;
+      box-shadow:0 10px 30px rgba(0,0,0,0.6);pointer-events:none;
+      display:none;`;
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+
+function showSpecTip(ev, sid) {
+  const j = STORE[sid];
+  if (!j) return;
+  const s = MANIFEST.strategies.find(x => x.id === sid) || {};
+  const sp = j.spec_summary || {};
+  const picks = j.next_picks || [];
+
+  // 因子列表
+  let factorsHtml = '';
+  if (sp.factors && sp.factors.length) {
+    factorsHtml = sp.factors.map(f => {
+      const dir = f.direction ? ` <span style="color:#64748b">(${f.direction})</span>` : '';
+      return `<div style="display:flex;justify-content:space-between;gap:10px;">
+        <span>· ${f.name}${dir}</span>
+        <span style="color:${s.color};font-weight:700">${f.weight_pct}%</span>
+      </div>`;
+    }).join('');
+  }
+
+  // 分組（d2p2t6）
+  let groupsHtml = '';
+  if (sp.groups && sp.groups.length) {
+    groupsHtml = '<div style="margin-top:6px;color:#64748b">分組配額：</div>' +
+      sp.groups.map(g => `<div style="display:flex;justify-content:space-between;gap:10px;">
+        <span>· ${g.label}（${g.size} 檔池）</span>
+        <span style="color:${s.color};font-weight:700">取 ${g.quota}</span>
+      </div>`).join('');
+  }
+
+  // next picks
+  let picksHtml = '<div style="color:#64748b;margin-top:8px;">下次可能選股：<span style="color:#475569">(無資料)</span></div>';
+  if (picks.length) {
+    picksHtml = `<div style="color:#64748b;margin-top:10px;border-top:1px solid #1e293b;padding-top:8px;">
+      🎯 下次可能選股（前 ${picks.length}）：
+    </div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;">
+      ${picks.map(t => `<span style="background:${s.color}22;color:${s.color};
+        border:1px solid ${s.color};padding:2px 7px;border-radius:10px;
+        font-size:10px;font-weight:700;">${t}</span>`).join('')}
+    </div>`;
+  }
+
+  const watchlist = sp.watchlist_top_n ? `<div>·  Watchlist：先取市值前 ${sp.watchlist_top_n}</div>` : '';
+  const maxW = sp.max_weight_pct != null ? ` · 單檔上限 ${sp.max_weight_pct}%` : '';
+  const benchmark = sp.benchmark ? `<div>·  基準：<b style="color:#e2e8f0">${sp.benchmark}</b></div>` : '';
+
+  const tip = _ensureTip();
+  tip.innerHTML = `
+    <div style="font-size:13px;font-weight:800;color:${s.color};margin-bottom:6px;">
+      ${sp.name || s.label}
+    </div>
+    <div style="color:#94a3b8;margin-bottom:8px;font-size:10.5px;line-height:1.5">
+      ${sp.description || ''}
+    </div>
+    <div>·  選股方法：<b style="color:#e2e8f0">${sp.selection_method_zh || '?'}</b></div>
+    <div>·  Universe：<b style="color:#e2e8f0">${sp.universe_size || 0} 檔</b> · 取前 <b style="color:#e2e8f0">${sp.target_n || '?'}</b>${maxW}</div>
+    <div>·  再平衡：<b style="color:#e2e8f0">${sp.rebalance_frequency_zh || '?'}</b></div>
+    ${watchlist}
+    ${benchmark}
+    ${factorsHtml ? `<div style="margin-top:6px;color:#64748b">因子權重：</div>${factorsHtml}` : ''}
+    ${groupsHtml}
+    ${picksHtml}
+  `;
+
+  // 定位（避開右邊界）
+  tip.style.display = 'block';
+  const r = ev.target.getBoundingClientRect();
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  let left = r.left;
+  let top = r.bottom + 8;
+  if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
+  if (top + th > window.innerHeight - 8) top = r.top - th - 8;
+  tip.style.left = left + 'px';
+  tip.style.top = top + 'px';
+}
+
+function hideSpecTip() {
+  const tip = document.getElementById('spec-tip');
+  if (tip) tip.style.display = 'none';
+}
+
+// ────────────────────────────────────────────────
+// 圖表繪製
+// ────────────────────────────────────────────────
+// 每次回傳全新物件 — Plotly 會內部突變共用 xaxis/yaxis 參考（log vs date vs category 混用會錯）
+function newLayout() {
+  return {
+    paper_bgcolor:'#0a0f1e', plot_bgcolor:'#0a0f1e',
+    font:{color:'#94a3b8',size:11,family:'Segoe UI,system-ui'},
+    margin:{t:30,r:20,b:50,l:60},
+    xaxis:{gridcolor:'#1e293b',linecolor:'#334155'},
+    yaxis:{gridcolor:'#1e293b',linecolor:'#334155'},
+    legend:{orientation:'h',y:-0.18},
+    hovermode:'x unified',
+  };
+}
+const PLOT_CFG = {responsive:true, displayModeBar:false};
+
+function strategiesFor(chartId) {
+  const arr = [];
+  MANIFEST.strategies.forEach(s => {
+    if (SIDEBAR_ON[s.id] && CHART_ON[chartId][s.id] && STORE[s.id]) arr.push(s);
+  });
+  return arr;
+}
+
+function redrawChart(chartId) {
+  if (chartId === 'nav-all') drawNAV();
+  else if (chartId === 'dd-all') drawDD();
+  else if (chartId === 'annual-all') drawAnnual();
+  else if (chartId === 'rr-chart') drawRR();
+}
+
+function drawNAV() {
+  const list = strategiesFor('nav-all');
+  const traces = list.map(s => {
+    const f = filterSeries(STORE[s.id]);
+    return {x:f.dates, y:f.nav, name:s.label, type:'scatter', mode:'lines',
+            line:{color:s.color,width:2}};
+  });
+  const lay = newLayout(); lay.yaxis.title='NAV ($)'; lay.yaxis.type='log'; lay.xaxis.type='date';
+  Plotly.react('nav-all', traces, lay, PLOT_CFG);
+}
+
+function drawDD() {
+  const list = strategiesFor('dd-all');
+  const traces = list.map(s => {
+    const f = filterSeries(STORE[s.id]);
+    let peak = f.nav[0]||0; const dd = [];
+    for (const v of f.nav) { if (v>peak) peak=v; dd.push(peak>0?(v-peak)/peak*100:0); }
+    return {x:f.dates, y:dd, name:s.label, type:'scatter', mode:'lines',
+            fill:'tozeroy', line:{color:s.color,width:1.4}, opacity:0.75};
+  });
+  const lay = newLayout(); lay.yaxis.title='Drawdown (%)'; lay.xaxis.type='date';
+  Plotly.react('dd-all', traces, lay, PLOT_CFG);
+}
+
+function drawAnnual() {
+  const list = strategiesFor('annual-all');
+  // 取所有年份的聯集
+  const years = new Set();
+  list.forEach(s => Object.keys(STORE[s.id].annual_returns || {}).forEach(y => {
+    if (CURRENT_X0 && y < CURRENT_X0.slice(0,4)) return;
+    if (CURRENT_X1 && y > CURRENT_X1.slice(0,4)) return;
+    years.add(y);
+  }));
+  const ys = [...years].sort();
+  const traces = list.map(s => ({
+    x: ys,
+    y: ys.map(y => {
+      const v = STORE[s.id].annual_returns?.[y];
+      return v == null ? null : v*100;
+    }),
+    name: s.label, type:'bar', marker:{color:s.color},
+  }));
+  const lay = newLayout(); lay.barmode='group'; lay.yaxis.title='年報酬率 (%)'; lay.xaxis.type='category';
+  Plotly.react('annual-all', traces, lay, PLOT_CFG);
+}
+
+function drawRR() {
+  const list = strategiesFor('rr-chart');
+  const xs=[], ys=[], txt=[], col=[];
+  list.forEach(s => {
+    const m = recomputeMetrics(filterSeries(STORE[s.id]));
+    if (m.volatility==null || m.cagr==null) return;
+    xs.push(m.volatility*100); ys.push(m.cagr*100);
+    txt.push(s.label); col.push(s.color);
+  });
+  const traces = [{
+    x:xs, y:ys, mode:'markers+text', type:'scatter',
+    text:txt, textposition:'top center',
+    marker:{color:col, size:14, line:{color:'#fff',width:1}},
+    textfont:{size:10},
+  }];
+  const lay = newLayout(); lay.xaxis.title='波動率 (%)'; lay.xaxis.type='linear';
+  lay.yaxis.title='CAGR (%)'; lay.yaxis.type='linear'; lay.showlegend=false;
+  Plotly.react('rr-chart', traces, lay, PLOT_CFG);
+}
+
+// ────────────────────────────────────────────────
+// KPI
+// ────────────────────────────────────────────────
+function drawKPI(filt) {
+  const wrap = document.getElementById('kpi-grid');
+  let html = '';
+  MANIFEST.strategies.forEach(s => {
+    if (!filt[s.id]) return;
+    const m = recomputeMetrics(filt[s.id]);
+    const cagr = m.cagr==null?'—':(m.cagr*100).toFixed(1)+'%';
+    const dd = m.max_drawdown==null?'—':(m.max_drawdown*100).toFixed(1)+'%';
+    const sh = m.sharpe==null?'—':m.sharpe.toFixed(2);
+    html += `<div class="kpi" style="border-color:${s.color}">
+      <div class="k-name" style="color:${s.color}">${s.label}</div>
+      <div class="k-val" style="color:${s.color}">${cagr}</div>
+      <div class="k-row"><span>MaxDD ${dd}</span><span>Sharpe ${sh}</span></div>
+    </div>`;
+  });
+  wrap.innerHTML = html || '<div class="empty">未選任何策略</div>';
+}
+
+// ────────────────────────────────────────────────
+// Table
+// ────────────────────────────────────────────────
+// 表格排序狀態（跨重繪保留）
+let TABLE_SORT = { key: 'cagr', dir: 'desc' };
+
+window.sortTable = function(key) {
+  if (TABLE_SORT.key === key) {
+    TABLE_SORT.dir = (TABLE_SORT.dir === 'desc') ? 'asc' : 'desc';
+  } else {
+    TABLE_SORT.key = key;
+    // 「策略」欄預設升冪（字母序）；數字欄預設降冪（大值優先）
+    TABLE_SORT.dir = (key === 'label') ? 'asc' : 'desc';
+  }
+  // 重新繪製（不重算 filterSeries — 用快取的 _lastFilt）
+  if (window._lastFilt) drawTable(window._lastFilt);
+};
+
+function drawTable(filt) {
+  window._lastFilt = filt;
+  const ids = Object.keys(filt);
+  if (!ids.length) {
+    document.getElementById('metrics-table-wrap').innerHTML = '<div class="empty">未選任何策略</div>';
+    return;
+  }
+
+  // 計算所有要顯示策略的 row 資料
+  const rows = [];
+  MANIFEST.strategies.forEach(s => {
+    if (!filt[s.id]) return;
+    const m = recomputeMetrics(filt[s.id]);
+    rows.push({ s, m, label: s.label });
+  });
+
+  // 排序
+  const k = TABLE_SORT.key;
+  const dir = TABLE_SORT.dir === 'asc' ? 1 : -1;
+  rows.sort((a, b) => {
+    let va, vb;
+    if (k === 'label') { va = a.label; vb = b.label; return va.localeCompare(vb) * dir; }
+    va = a.m[k]; vb = b.m[k];
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;       // null 永遠排最後
+    if (vb == null) return -1;
+    return (va - vb) * dir;
+  });
+
+  const arr = d => TABLE_SORT.key === d
+    ? (TABLE_SORT.dir === 'desc' ? ' ▼' : ' ▲') : '';
+
+  let html = '<table><thead><tr>'
+    + `<th onclick="sortTable('label')">策略${arr('label')}</th>`
+    + `<th onclick="sortTable('cagr')">CAGR${arr('cagr')}</th>`
+    + `<th onclick="sortTable('total_return')">總報酬${arr('total_return')}</th>`
+    + `<th onclick="sortTable('volatility')">波動率${arr('volatility')}</th>`
+    + `<th onclick="sortTable('sharpe')">Sharpe${arr('sharpe')}</th>`
+    + `<th onclick="sortTable('max_drawdown')">MaxDD${arr('max_drawdown')}</th>`
+    + `<th onclick="sortTable('calmar')">Calmar${arr('calmar')}</th>`
+    + `<th onclick="sortTable('final_value')">終值${arr('final_value')}</th>`
+    + '</tr></thead><tbody>';
+
+  const fmt = (v, pct=true, dp=2) => v==null?'—':(pct?(v*100).toFixed(dp)+'%':v.toFixed(dp));
+  const cls = v => v==null?'':v>=0?'cg':'cr';
+
+  rows.forEach(({s, m}) => {
+    html += `<tr>
+      <td style="color:${s.color}">${s.label}</td>
+      <td class="${cls(m.cagr)}">${fmt(m.cagr)}</td>
+      <td class="${cls(m.total_return)}">${fmt(m.total_return)}</td>
+      <td>${fmt(m.volatility)}</td>
+      <td>${fmt(m.sharpe,false)}</td>
+      <td class="cr">${fmt(m.max_drawdown)}</td>
+      <td>${fmt(m.calmar,false)}</td>
+      <td>$${m.final_value?Math.round(m.final_value).toLocaleString():'—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('metrics-table-wrap').innerHTML = html;
+}
+
+// ────────────────────────────────────────────────
+// Heatmaps
+// ────────────────────────────────────────────────
+function drawHeatmaps(filt) {
+  const wrap = document.getElementById('heatmaps');
+  wrap.innerHTML = '';
+  let any = false;
+  MANIFEST.strategies.forEach(s => {
+    if (!filt[s.id]) return;
+    const mr = STORE[s.id].monthly_returns || {};
+    const years = Object.keys(mr).sort()
+      .filter(y => (!CURRENT_X0 || y >= CURRENT_X0.slice(0,4))
+                && (!CURRENT_X1 || y <= CURRENT_X1.slice(0,4)));
+    if (!years.length) return;
+    const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    const z = years.map(y => months.map(m => {
+      const v = mr[y]?.[m]; return v==null?null:v*100;
+    }));
+    const id = 'hm-' + s.id;
+    const div = document.createElement('div');
+    div.style.marginBottom = '20px';
+    div.innerHTML = `<div style="font-size:12px;font-weight:700;color:${s.color};margin-bottom:6px;">${s.label}</div><div id="${id}" style="height:${Math.max(200, years.length*22+60)}px;"></div>`;
+    wrap.appendChild(div);
+    Plotly.react(id, [{
+      z, x:months, y:years, type:'heatmap',
+      colorscale:[[0,'#7f1d1d'],[0.5,'#0a0f1e'],[1,'#14532d']],
+      zmid:0, hovertemplate:'%{y}-%{x}: %{z:.2f}%<extra></extra>',
+    }], (()=>{const l=newLayout();l.margin={t:10,r:20,b:40,l:50};l.xaxis.type='category';l.yaxis.type='category';return l;})(), PLOT_CFG);
+    any = true;
+  });
+  if (!any) wrap.innerHTML = '<div class="empty">未選任何策略</div>';
+}
+
+// ────────────────────────────────────────────────
+// 啟動
+// ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', loadAll);
+</script>
+</body>
+</html>
