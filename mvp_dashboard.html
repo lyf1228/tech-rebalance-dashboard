@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>投資組合 Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+  body { background:#0f172a; color:#e2e8f0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif }
+  .card { background:#1e293b; border-radius:12px; padding:20px; margin-bottom:16px }
+  .kpi-card { background:#1e293b; border-radius:10px; padding:16px }
+  .badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 10px;
+           border-radius:20px; letter-spacing:.4px }
+  .sym-badge { display:inline-block; font-size:12px; font-weight:600; padding:3px 10px;
+               border-radius:20px; margin:2px; border:1px solid }
+  .pos-row:hover { background: rgba(255,255,255,.04) }
+  .in-port { border-left:3px solid #22c55e }
+  select, option { background:#1e293b; color:#e2e8f0 }
+  #error-banner { display:none }
+  #version-banner { display:none }
+  #pause-banner  { display:none }
+  #dry-run-banner{ display:none }
+  .spinner { animation:spin 1s linear infinite }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+
+<!-- ── 警示 Banners ─────────────────────────────────────────────────────── -->
+<div id="dry-run-banner" style="background:#78350f;color:#fef3c7;text-align:center;padding:10px;font-weight:600">
+  ⚠️ DRY RUN 模式 — 此為模擬資料，非真實交易
+</div>
+<div id="pause-banner" style="background:#713f12;color:#fef9c3;text-align:center;padding:10px;font-weight:600">
+  ⏸️ 策略已暫停 — 目前不執行再平衡
+</div>
+<div id="version-banner" style="background:#312e81;color:#e0e7ff;text-align:center;padding:10px;font-weight:600">
+  ⚠️ data.json 版本不相容，請更新 dashboard
+</div>
+<div id="error-banner" style="background:#7f1d1d;color:#fecaca;text-align:center;padding:12px;font-weight:600">
+  ❌ <span id="error-msg">載入失敗</span>
+</div>
+
+<!-- ── 主容器 ───────────────────────────────────────────────────────────── -->
+<div class="max-w-5xl mx-auto px-4 py-6">
+
+  <!-- Header -->
+  <div class="card mb-4">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h1 id="title" class="text-xl font-bold text-white">載入中…</h1>
+        <p id="subtitle" class="text-sm text-slate-400 mt-1"></p>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <!-- 日期選擇器 -->
+        <div id="date-picker"></div>
+        <!-- 帳戶切換下拉 -->
+        <div id="account-switcher"></div>
+        <div id="status-badge"></div>
+      </div>
+    </div>
+    <p class="text-xs text-slate-500 mt-3">
+      交易日：<span id="trading-date">—</span> ·
+      生成時間：<span id="generated-at">—</span>
+    </p>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading" class="text-center py-20 text-slate-400">
+    <svg class="spinner mx-auto mb-4" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-opacity=".25"/>
+      <path d="M21 12a9 9 0 00-9-9"/>
+    </svg>
+    正在載入資料…
+  </div>
+
+  <!-- Main content (hidden until loaded) -->
+  <div id="main-content" style="display:none">
+
+    <!-- KPI 卡片 -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div class="kpi-card">
+        <div class="text-xs text-slate-400 uppercase tracking-wide mb-2">NAV 淨值</div>
+        <div id="kpi-nav" class="text-2xl font-bold text-white">—</div>
+        <div id="kpi-cash" class="text-xs text-slate-400 mt-1">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="text-xs text-slate-400 uppercase tracking-wide mb-2">今日損益</div>
+        <div id="kpi-today-pct" class="text-2xl font-bold">—</div>
+        <div id="kpi-today-amt" class="text-xs mt-1">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="text-xs text-slate-400 uppercase tracking-wide mb-2">總報酬 TWR</div>
+        <div id="kpi-twr" class="text-2xl font-bold">—</div>
+        <div id="kpi-inception" class="text-xs text-slate-400 mt-1">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="text-xs text-slate-400 uppercase tracking-wide mb-2">年初至今 YTD</div>
+        <div id="kpi-ytd" class="text-2xl font-bold">—</div>
+        <div id="kpi-monthly" class="text-xs mt-1">—</div>
+      </div>
+    </div>
+
+    <!-- 策略描述卡片 -->
+    <div class="card" id="strategy-card-section" style="display:none">
+      <div class="flex items-start justify-between flex-wrap gap-2 mb-3">
+        <div>
+          <div id="sc-name" class="text-base font-bold text-white"></div>
+          <div id="sc-desc" class="text-sm text-slate-400 mt-1 leading-relaxed"></div>
+        </div>
+        <button onclick="document.getElementById('sc-detail').classList.toggle('hidden')"
+          class="text-xs text-slate-500 hover:text-slate-300 border border-slate-700
+                 rounded px-2 py-1 flex-shrink-0">詳情 ▾</button>
+      </div>
+      <!-- Tags -->
+      <div id="sc-tags" class="flex flex-wrap gap-1 mb-3"></div>
+      <!-- 基本資訊（始終顯示） -->
+      <div id="sc-info" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm mb-3"></div>
+      <!-- 詳情（點擊展開） -->
+      <div id="sc-detail" class="hidden mt-3 border-t border-slate-700 pt-3">
+        <!-- 風控亮點 -->
+        <div id="sc-risk-wrap" class="mb-3 hidden">
+          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">風控</div>
+          <div id="sc-risk" class="flex flex-wrap gap-1"></div>
+        </div>
+        <!-- 排名因子 -->
+        <div id="sc-factors-wrap" class="mb-3 hidden">
+          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">排名因子</div>
+          <div id="sc-factors" class="grid grid-cols-2 sm:grid-cols-3 gap-1"></div>
+        </div>
+        <!-- 過濾條件 -->
+        <div id="sc-filters-wrap" class="hidden">
+          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">篩選條件</div>
+          <div id="sc-filters"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 組合 Badges -->
+    <div class="card" id="portfolio-section">
+      <h2 id="portfolio-label" class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">組合</h2>
+      <div id="portfolio-badges"></div>
+    </div>
+
+    <!-- NAV 折線圖 -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">NAV 走勢</h2>
+        <div id="nav-toggles" class="flex gap-4 text-xs"></div>
+      </div>
+      <canvas id="nav-chart" height="120"></canvas>
+    </div>
+
+    <!-- 回撤圖 -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">回撤對比</h2>
+        <div id="drawdown-toggles" class="flex gap-4 text-xs"></div>
+      </div>
+      <canvas id="drawdown-chart" height="110"></canvas>
+    </div>
+
+    <!-- 持倉表 -->
+    <div class="card">
+      <h2 id="positions-title" class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">當前持倉</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm" id="positions-table">
+          <thead>
+            <tr class="text-xs text-slate-500 border-b border-slate-700">
+              <th class="py-2 px-3 text-left">#</th>
+              <th class="py-2 px-3 text-left">股票</th>
+              <th class="py-2 px-3 text-right">股數</th>
+              <th class="py-2 px-3 text-right">股價</th>
+              <th class="py-2 px-3 text-right">均價</th>
+              <th class="py-2 px-3 text-right">市值</th>
+              <th class="py-2 px-3 text-right">權重</th>
+              <th class="py-2 px-3 text-right">損益%</th>
+              <th class="py-2 px-3 text-right">損益$</th>
+            </tr>
+          </thead>
+          <tbody id="positions-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Rankings（多型） -->
+    <div class="card" id="rankings-section">
+      <h2 id="rankings-title" class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">排名</h2>
+      <div id="rankings-content"></div>
+    </div>
+
+    <!-- 今日事件 -->
+    <div class="card" id="events-section" style="display:none">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">今日帳戶事件</h2>
+      <div id="events-content"></div>
+    </div>
+
+    <!-- 策略歷史（帳戶歷經多個策略時） -->
+    <div class="card" id="strategy-history-section" style="display:none">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">策略歷史（本帳戶歷經的策略）</h2>
+      <div id="strategy-history-content"></div>
+    </div>
+
+    <!-- 交易日誌 -->
+    <div class="card">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">交易日誌</h2>
+      <div id="trade-log"></div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /container -->
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+//  常數
+// ══════════════════════════════════════════════════════════════════════════════
+const SUPPORTED_SCHEMA_VERSION = "1.0";
+const BASE_URL = "./";   // 相對於 dashboard.html 所在目錄
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  URL 路由
+// ══════════════════════════════════════════════════════════════════════════════
+function getParams() {
+  const p = new URLSearchParams(location.search);
+  return { accountId: p.get("a"), dateParam: p.get("d") };
+}
+
+async function main() {
+  const { accountId, dateParam } = getParams();
+
+  // 1. 載入 accounts.json
+  let accounts;
+  try {
+    const res = await fetch(BASE_URL + "accounts.json");
+    if (!res.ok) throw new Error("accounts.json HTTP " + res.status);
+    const json = await res.json();
+    accounts = json.accounts;
+  } catch(e) {
+    showError("無法載入 accounts.json：" + e.message);
+    return;
+  }
+
+  if (!accounts || accounts.length === 0) {
+    showError("accounts.json 中沒有帳戶");
+    return;
+  }
+
+  // 2. 確定要顯示哪個帳戶
+  let account;
+  if (accountId) {
+    account = accounts.find(a => a.id === accountId);
+    if (!account) { showError("帳戶 ID 不存在：" + accountId); return; }
+  } else {
+    account = accounts[0];
+  }
+
+  // 3. 載入 {id}/index.json 取可用日期清單
+  let availableDates = [];
+  try {
+    const res = await fetch(`${BASE_URL}${account.id}/index.json`);
+    if (res.ok) {
+      const idx = await res.json();
+      availableDates = idx.dates || [];
+    }
+  } catch(e) { /* 沒有 index.json 時 fallback 到 data.json */ }
+
+  // 4. 決定要載入哪個日期的資料
+  const targetDate = (dateParam && availableDates.includes(dateParam)) ? dateParam : null;
+  const dataUrl = targetDate
+    ? `${BASE_URL}${account.id}/${targetDate}.json`
+    : `${BASE_URL}${account.id}/data.json`;
+
+  let data;
+  try {
+    const res = await fetch(dataUrl);
+    if (!res.ok) throw new Error(`${dataUrl.replace(BASE_URL,"")} HTTP ` + res.status);
+    data = await res.json();
+  } catch(e) {
+    showError("無法載入帳戶資料：" + e.message);
+    return;
+  }
+
+  // 5. Schema 版本確認
+  if (data.meta.schema_version !== SUPPORTED_SCHEMA_VERSION) {
+    document.getElementById("version-banner").style.display = "block";
+  }
+
+  // 6. 渲染
+  render(data, accounts, account, availableDates, targetDate);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  主渲染函式
+// ══════════════════════════════════════════════════════════════════════════════
+function render(d, allAccounts, currentAccount, availableDates = [], selectedDate = null) {
+  const meta    = d.meta;
+  const summary = d.summary;
+  const accent  = meta.accent_color || "#38bdf8";
+
+  document.getElementById("loading").style.display = "none";
+  document.getElementById("main-content").style.display = "block";
+
+  // Banners
+  if (meta.dry_run) document.getElementById("dry-run-banner").style.display = "block";
+  if (meta.strategy_status === "paused") document.getElementById("pause-banner").style.display = "block";
+
+  // Header
+  document.getElementById("title").textContent = meta.strategy?.toUpperCase() + " Dashboard";
+  document.getElementById("subtitle").textContent = meta.account_label;
+  document.getElementById("trading-date").textContent = meta.trading_date;
+  document.getElementById("generated-at").textContent = meta.generated_at.replace("T", " ").replace("Z", " UTC");
+
+  // 帳戶切換選單 + 日期選擇器
+  renderAccountSwitcher(allAccounts, currentAccount, meta.strategy, accent);
+  renderDatePicker(availableDates, selectedDate, currentAccount.id);
+
+  // Status badge
+  const badgeEl = document.getElementById("status-badge");
+  const statusMap = {
+    active:  ["LIVE",    "#dcfce7", "#16a34a"],
+    paused:  ["PAUSED",  "#fef9c3", "#ca8a04"],
+    switched:["SWITCHED","#e0e7ff", "#4f46e5"],
+  };
+  const [bLabel, bBg, bFg] = meta.dry_run ? ["DRY RUN","#fef3c7","#d97706"]
+                                           : (statusMap[meta.strategy_status] || ["LIVE","#dcfce7","#16a34a"]);
+  badgeEl.innerHTML = `<span class="badge" style="background:${bBg};color:${bFg}">${bLabel}</span>`;
+
+  // KPI
+  renderKPI(summary, accent);
+
+  // Portfolio badges
+  renderPortfolioBadges(d.portfolio, accent);
+
+  // Strategy card
+  renderStrategyCard(d.strategy_card, accent);
+
+  // Charts
+  renderNavChart(d.nav_history, d.benchmark_nav, accent);
+  renderDrawdownChart(d.drawdown, accent);
+
+  // Positions
+  renderPositions(d.positions, d.portfolio.symbols);
+
+  // Rankings
+  renderRankings(d.rankings, accent);
+
+  // Events
+  renderEvents(d.events, meta.trading_date);
+
+  // 策略歷史
+  renderStrategyHistory(d.strategy_history);
+
+  // Trade log
+  renderTradeLog(d.trade_log);
+}
+
+function renderStrategyHistory(hist) {
+  const sec = document.getElementById("strategy-history-section");
+  if (!hist || hist.length < 2) { sec.style.display = "none"; return; }
+  sec.style.display = "";
+  const rows = hist.map(seg => `
+    <tr class="border-b border-slate-700">
+      <td class="py-2 pr-4 text-sm text-slate-400 whitespace-nowrap">${seg.from || "?"} ～ ${seg.to || "至今"}</td>
+      <td class="py-2 text-sm font-semibold text-white">${seg.label || seg.strategy || ""}</td>
+    </tr>`).join("");
+  document.getElementById("strategy-history-content").innerHTML = `
+    <table class="w-full">
+      <thead><tr class="text-xs text-slate-500 uppercase tracking-wide">
+        <th class="text-left pb-2 pr-4">期間</th><th class="text-left pb-2">策略</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  帳戶切換選單
+// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+//  Date Picker
+// ══════════════════════════════════════════════════════════════════════════════
+function renderDatePicker(availableDates, selectedDate, accountId) {
+  const el = document.getElementById("date-picker");
+  if (!el) return;
+
+  // 沒有歷史資料時隱藏
+  if (!availableDates || availableDates.length === 0) {
+    el.innerHTML = "";
+    return;
+  }
+
+  const SEL_STYLE = [
+    "background:#1e293b", "color:#e2e8f0",
+    "border:1px solid #475569", "border-radius:8px",
+    "padding:4px 12px", "font-size:0.8rem", "cursor:pointer",
+  ].join(";");
+
+  const options = availableDates.map(d => {
+    const isLatest  = d === availableDates[0];
+    const label     = isLatest ? `${d} ★` : d;
+    const isSelected = selectedDate ? d === selectedDate : isLatest;
+    return `<option value="${d}" ${isSelected ? "selected" : ""}>${label}</option>`;
+  }).join("");
+
+  el.innerHTML =
+    `<select style="${SEL_STYLE}" title="選擇歷史日期"
+       onchange="
+         const d = this.value;
+         const latest = '${availableDates[0]}';
+         const base = '?a=${accountId}';
+         location.href = (d === latest) ? base : base + '&d=' + d;
+       ">${options}</select>`;
+}
+
+function renderAccountSwitcher(allAccounts, current, currentStrategy, accent) {
+  const el = document.getElementById("account-switcher");
+
+  // 單一帳戶：靜態 badge
+  if (allAccounts.length <= 1) {
+    el.innerHTML = `<span class="text-xs text-slate-400 border border-slate-600 px-3 py-1 rounded-full">
+      帳戶&nbsp;#${current.id}
+    </span>`;
+    return;
+  }
+
+  // 多帳戶：下拉選單，顯示全部帳戶（含跨策略）
+  const options = allAccounts.map(a => {
+    const label = a.label || `帳戶 #${a.id}`;
+    return `<option value="?a=${a.id}" ${a.id === current.id ? "selected" : ""}>${label}</option>`;
+  }).join("");
+
+  el.innerHTML = `<select
+    style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:4px 12px;font-size:0.875rem;cursor:pointer;"
+    onchange="if(this.value) location.href=this.value">${options}</select>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  KPI
+// ══════════════════════════════════════════════════════════════════════════════
+function renderKPI(s, accent) {
+  const fmtPct = v => (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
+  const fmtAmt = v => (v < 0 ? "−" : "+") + "$" + Math.abs(v).toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0});
+  const color  = v => v >= 0 ? "#22c55e" : "#ef4444";
+
+  document.getElementById("kpi-nav").textContent = "$" + s.nav.toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0});
+  document.getElementById("kpi-cash").textContent = "現金 $" + s.cash.toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0});
+
+  const todayEl = document.getElementById("kpi-today-pct");
+  todayEl.textContent = fmtPct(s.today_change_pct);
+  todayEl.style.color = color(s.today_change_pct);
+  const todayAmtEl = document.getElementById("kpi-today-amt");
+  todayAmtEl.textContent = fmtAmt(s.today_change);
+  todayAmtEl.style.color = color(s.today_change);
+
+  const twrEl = document.getElementById("kpi-twr");
+  twrEl.textContent = fmtPct(s.total_return_pct_twr);
+  twrEl.style.color = color(s.total_return_pct_twr);
+  document.getElementById("kpi-inception").textContent = "自 " + s.inception_date + " 起";
+
+  const ytdEl = document.getElementById("kpi-ytd");
+  if (s.ytd_return_pct !== null && s.ytd_return_pct !== undefined) {
+    ytdEl.textContent = fmtPct(s.ytd_return_pct);
+    ytdEl.style.color = color(s.ytd_return_pct);
+  } else {
+    ytdEl.textContent = "—";
+    ytdEl.style.color = "#64748b";
+  }
+  const monthlyEl = document.getElementById("kpi-monthly");
+  if (s.monthly_return_pct !== null && s.monthly_return_pct !== undefined) {
+    monthlyEl.textContent = "本月 " + fmtPct(s.monthly_return_pct);
+    monthlyEl.style.color = color(s.monthly_return_pct);
+  } else {
+    monthlyEl.textContent = "";
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Portfolio Badges
+// ══════════════════════════════════════════════════════════════════════════════
+function renderPortfolioBadges(portfolio, accent) {
+  document.getElementById("portfolio-label").textContent =
+    portfolio.label + "（" + portfolio.symbols.length + " 檔）";
+  document.getElementById("portfolio-badges").innerHTML =
+    portfolio.symbols.map(s =>
+      `<span class="sym-badge" style="background:${accent}22;color:${accent};border-color:${accent}55">${s}</span>`
+    ).join("");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  NAV Chart
+// ══════════════════════════════════════════════════════════════════════════════
+let navChartInst = null;
+function renderNavChart(history, benchmarkNav, accent) {
+  if (!history || history.length === 0) return;
+  const labels = history.map(p => p.date);
+  const navs   = history.map(p => p.nav);
+
+  // 事件標記點（僅投組主線）
+  const pointRadii    = history.map(p => p.event ? 6 : 2);
+  const pointBgColors = history.map(p => p.event ? "#f59e0b" : accent);
+
+  const datasets = [{
+    label: "投組 NAV",
+    data:  navs,
+    borderColor:       accent,
+    backgroundColor:   accent + "22",
+    fill:              true,
+    tension:           0.3,
+    borderWidth:       2,
+    pointRadius:       pointRadii,
+    pointBackgroundColor: pointBgColors,
+  }];
+
+  const hasSP500  = benchmarkNav?.sp500?.some(v => v !== null);
+  const hasNasdaq = benchmarkNav?.nasdaq?.some(v => v !== null);
+
+  if (hasSP500)
+    datasets.push({
+      label:       "S&P500",
+      data:        benchmarkNav.sp500,
+      borderColor: "#fb923c",
+      fill:        false,
+      tension:     0.3,
+      borderDash:  [5, 3],
+      borderWidth: 1.5,
+      pointRadius: 0,
+    });
+
+  if (hasNasdaq)
+    datasets.push({
+      label:       "NASDAQ",
+      data:        benchmarkNav.nasdaq,
+      borderColor: "#a78bfa",
+      fill:        false,
+      tension:     0.3,
+      borderDash:  [5, 3],
+      borderWidth: 1.5,
+      pointRadius: 0,
+    });
+
+  const ctx = document.getElementById("nav-chart").getContext("2d");
+  if (navChartInst) navChartInst.destroy();
+  navChartInst = new Chart(ctx, {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => ` ${c.dataset.label}: $${c.parsed.y.toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0})}`,
+            afterBody: c => {
+              const idx = c[0].dataIndex;
+              const evt = history[idx]?.event;
+              return evt ? ["⚡ " + evt.label] : [];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color:"#64748b", maxTicksLimit:8 }, grid: { color:"#1e293b" } },
+        y: { ticks: { color:"#64748b", callback: v => "$" + v.toLocaleString() }, grid: { color:"#334155" } }
+      }
+    }
+  });
+
+  // ── 勾選框（與 drawdown 圖同樣風格）────────────────────────────────────────
+  const toggleEl = document.getElementById("nav-toggles");
+  if (!toggleEl) return;
+  toggleEl.innerHTML = "";
+
+  datasets.forEach((ds, i) => {
+    const wrap = document.createElement("label");
+    wrap.style.cssText = "display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none;";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = true;
+    cb.style.accentColor = ds.borderColor;
+    cb.addEventListener("change", () => {
+      navChartInst.setDatasetVisibility(i, cb.checked);
+      navChartInst.update();
+    });
+
+    const dot = document.createElement("span");
+    dot.style.cssText = `display:inline-block;width:10px;height:10px;border-radius:2px;background:${ds.borderColor};flex-shrink:0;`;
+
+    const txt = document.createElement("span");
+    txt.textContent = ds.label;
+    txt.style.color = "#94a3b8";
+
+    wrap.append(cb, dot, txt);
+    toggleEl.appendChild(wrap);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+//  Strategy Card
+// ══════════════════════════════════════════════════════════════════════════════
+function renderStrategyCard(sc, accent) {
+  const sec = document.getElementById("strategy-card-section");
+  if (!sc || !sec) return;
+  sec.style.display = "";
+
+  const $ = id => document.getElementById(id);
+
+  $("sc-name").textContent = sc.name || "";
+  $("sc-desc").textContent = sc.description || "";
+
+  // Tags
+  const tagsEl = $("sc-tags");
+  tagsEl.innerHTML = (sc.tags || []).map(t =>
+    `<span style="background:${accent}22;color:${accent};border:1px solid ${accent}55;
+      border-radius:12px;font-size:11px;font-weight:600;padding:2px 10px">${t}</span>`
+  ).join("");
+
+  // 基本資訊
+  const infoEl = $("sc-info");
+  const infoRows = [
+    ["宇宙",   sc.universe_summary],
+    ["選股",   sc.selection_summary],
+    ["再平衡", sc.rebalancing_summary],
+    ["基準",   sc.benchmark],
+  ];
+  infoEl.innerHTML = infoRows.filter(([,v]) => v).map(([k,v]) =>
+    `<div><span class="text-slate-500 text-xs font-semibold">${k}　</span>
+     <span class="text-slate-300 text-xs">${v}</span></div>`
+  ).join("");
+
+  // 風控
+  const riskItems = sc.risk_highlights || [];
+  const riskWrap = $("sc-risk-wrap");
+  if (riskItems.length) {
+    riskWrap.classList.remove("hidden");
+    $("sc-risk").innerHTML = riskItems.map(r =>
+      `<span style="background:#fef3c722;color:#fbbf24;border:1px solid #fbbf2444;
+        border-radius:8px;font-size:11px;padding:2px 8px">⚠ ${r}</span>`
+    ).join("");
+  }
+
+  // 排名因子
+  const factors = sc.ranking_factors || [];
+  const factorsWrap = $("sc-factors-wrap");
+  if (factors.length) {
+    factorsWrap.classList.remove("hidden");
+    $("sc-factors").innerHTML = factors.slice(0,8).map(f =>
+      `<div class="flex justify-between text-xs py-1 border-b border-slate-700">
+         <span class="text-slate-300">${f.direction} ${f.name}</span>
+         <span style="color:${accent};font-weight:700">${f.weight}</span>
+       </div>`
+    ).join("");
+  }
+
+  // 篩選條件
+  const fs = sc.filter_summary || {};
+  const filtersWrap = $("sc-filters-wrap");
+  if (Object.keys(fs).length) {
+    filtersWrap.classList.remove("hidden");
+    const labelMap = { fundamental: "基本面", technical: "技術面" };
+    $("sc-filters").innerHTML = Object.entries(fs).map(([key, items]) =>
+      `<div class="mb-2">
+         <span class="text-xs text-slate-500 font-semibold">${labelMap[key]||key}　</span>
+         ${items.map(c =>
+           `<span style="display:inline-block;background:#1e293b;color:#94a3b8;
+             border:1px solid #334155;border-radius:6px;font-size:11px;
+             padding:2px 7px;margin:2px 3px 2px 0">${c}</span>`
+         ).join("")}
+       </div>`
+    ).join("");
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Drawdown Chart
+// ══════════════════════════════════════════════════════════════════════════════
+let ddChartInst = null;
+function renderDrawdownChart(dd, accent) {
+  if (!dd || !dd.dates || dd.dates.length === 0) return;
+  const ctx = document.getElementById("drawdown-chart").getContext("2d");
+  if (ddChartInst) ddChartInst.destroy();
+
+  const hasNasdaq = dd.nasdaq && dd.nasdaq.some(v => v !== null);
+  const hasSP500  = dd.sp500  && dd.sp500.some(v => v !== null);
+
+  const datasets = [
+    { label:"投組", data: dd.portfolio, borderColor: accent,    fill:true, backgroundColor: accent+"22", tension:0.3, borderWidth:2 },
+  ];
+  if (hasNasdaq)
+    datasets.push({ label:"NASDAQ", data: dd.nasdaq, borderColor:"#a78bfa", fill:false, tension:0.3, borderDash:[4,3], borderWidth:1.5 });
+  if (hasSP500)
+    datasets.push({ label:"S&P500", data: dd.sp500,  borderColor:"#fb923c", fill:false, tension:0.3, borderDash:[4,3], borderWidth:1.5 });
+
+  ddChartInst = new Chart(ctx, {
+    type: "line",
+    data: { labels: dd.dates, datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },   // 用自製勾選框取代內建 legend
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%` }
+        }
+      },
+      scales: {
+        x: { ticks: { color:"#64748b", maxTicksLimit:8 }, grid: { color:"#1e293b" } },
+        y: { ticks: { color:"#64748b", callback: v => v.toFixed(1)+"%" }, grid: { color:"#334155" } }
+      }
+    }
+  });
+
+  // ── 建立勾選框 ───────────────────────────────────────────────────────────
+  const toggleEl = document.getElementById("drawdown-toggles");
+  if (!toggleEl) return;
+  toggleEl.innerHTML = "";
+
+  datasets.forEach((ds, i) => {
+    const id = "dd-toggle-" + i;
+    const wrap = document.createElement("label");
+    wrap.style.cssText = "display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none;";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = true;
+    cb.id = id;
+    cb.style.accentColor = ds.borderColor;
+    cb.addEventListener("change", () => {
+      ddChartInst.setDatasetVisibility(i, cb.checked);
+      ddChartInst.update();
+    });
+
+    const dot = document.createElement("span");
+    dot.style.cssText = `display:inline-block;width:10px;height:10px;border-radius:2px;background:${ds.borderColor};flex-shrink:0;`;
+
+    const txt = document.createElement("span");
+    txt.textContent = ds.label;
+    txt.style.color = "#94a3b8";
+
+    wrap.append(cb, dot, txt);
+    toggleEl.appendChild(wrap);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Positions
+// ══════════════════════════════════════════════════════════════════════════════
+function renderPositions(positions, portfolioSymbols) {
+  const portSet = new Set(portfolioSymbols);
+  document.getElementById("positions-title").textContent =
+    "當前持倉（" + positions.length + " 檔，綠框 = 組合內）";
+
+  const fmtPct = v => (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
+  const fmtAmt = v => (v < 0 ? "−$" : "+$") + Math.abs(v).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
+  const color  = v => v >= 0 ? "#22c55e" : "#ef4444";
+
+  document.getElementById("positions-tbody").innerHTML = positions.map((p, i) => {
+    const inPort = portSet.has(p.symbol);
+    const cls    = inPort ? "in-port" : "";
+    return `<tr class="pos-row border-b border-slate-700/50 ${cls}" style="${inPort ? "background:rgba(34,197,94,.05)" : ""}">
+      <td class="py-2 px-3 text-slate-500">${i+1}</td>
+      <td class="py-2 px-3 font-bold font-mono" style="color:#38bdf8">
+        ${p.symbol}${inPort ? ' <span style="color:#22c55e;font-size:10px">●</span>' : ""}
+      </td>
+      <td class="py-2 px-3 text-right text-slate-300">${Math.round(p.qty)}</td>
+      <td class="py-2 px-3 text-right">\$${p.current_price.toFixed(2)}</td>
+      <td class="py-2 px-3 text-right text-slate-400">\$${p.avg_entry_price.toFixed(2)}</td>
+      <td class="py-2 px-3 text-right">\$${p.market_value.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}</td>
+      <td class="py-2 px-3 text-right text-slate-400">${p.weight.toFixed(1)}%</td>
+      <td class="py-2 px-3 text-right font-semibold" style="color:${color(p.unrealized_plpc)}">${fmtPct(p.unrealized_plpc)}</td>
+      <td class="py-2 px-3 text-right" style="color:${color(p.unrealized_pl)}">${fmtAmt(p.unrealized_pl)}</td>
+    </tr>`;
+  }).join("");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Rankings
+// ══════════════════════════════════════════════════════════════════════════════
+function renderRankings(rankings, accent) {
+  document.getElementById("rankings-title").textContent = rankings.label;
+  const el = document.getElementById("rankings-content");
+
+  if (rankings.type === "market_cap_list") {
+    el.innerHTML = renderMarketCapList(rankings.items, accent);
+  } else if (rankings.type === "universe_groups") {
+    el.innerHTML = renderUniverseGroups(rankings.groups, accent);
+  }
+}
+
+function renderMarketCapList(items, accent) {
+  const rows = items.map(item => {
+    const c     = item.change_pct >= 0 ? "#22c55e" : "#ef4444";
+    const sign  = item.change_pct >= 0 ? "+" : "";
+    const mark  = item.in_portfolio ? `<span style="color:#22c55e"> ✓</span>` : "";
+    return `<tr class="border-b border-slate-700/40">
+      <td class="py-2 px-3 text-slate-500 text-xs">${item.rank}</td>
+      <td class="py-2 px-3 font-bold font-mono" style="color:#38bdf8">${item.symbol}${mark}</td>
+      <td class="py-2 px-3 text-right">\$${item.price.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td class="py-2 px-3 text-right text-xs font-semibold" style="color:${c}">${sign}${item.change_pct.toFixed(2)}%</td>
+      <td class="py-2 px-3 text-right text-xs text-slate-400">${item.market_cap_b.toFixed(0)}B</td>
+    </tr>`;
+  }).join("");
+  return `<div class="overflow-x-auto"><table class="w-full text-sm">
+    <thead><tr class="text-xs text-slate-500 border-b border-slate-700">
+      <th class="py-2 px-3 text-left">#</th>
+      <th class="py-2 px-3 text-left">股票</th>
+      <th class="py-2 px-3 text-right">股價</th>
+      <th class="py-2 px-3 text-right">漲跌</th>
+      <th class="py-2 px-3 text-right">市值</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function renderUniverseGroups(groups, accent) {
+  return `<div class="flex gap-4 flex-wrap">` + groups.map(group => {
+    const rows = group.items.map(item => {
+      const c    = item.change_pct >= 0 ? "#22c55e" : "#ef4444";
+      const sign = item.change_pct >= 0 ? "+" : "";
+      const mark = item.in_portfolio ? `<span style="color:#22c55e"> ✓</span>` : "";
+      return `<tr class="border-b border-slate-700/40" style="${item.in_portfolio ? "background:rgba(34,197,94,.05)" : ""}">
+        <td class="py-1.5 px-3 text-slate-500 text-xs">${item.rank}</td>
+        <td class="py-1.5 px-3 font-bold font-mono text-sm" style="color:#38bdf8">${item.symbol}${mark}</td>
+        <td class="py-1.5 px-3 text-right text-sm">\$${item.price.toFixed(2)}</td>
+        <td class="py-1.5 px-3 text-right text-xs font-semibold" style="color:${c}">${sign}${item.change_pct.toFixed(2)}%</td>
+      </tr>`;
+    }).join("");
+    return `<div class="flex-1 min-w-48">
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">${group.label}</h3>
+      <table class="w-full text-sm">
+        <thead><tr class="text-xs text-slate-600 border-b border-slate-700">
+          <th class="py-1.5 px-3 text-left">#</th>
+          <th class="py-1.5 px-3 text-left">股票</th>
+          <th class="py-1.5 px-3 text-right">股價</th>
+          <th class="py-1.5 px-3 text-right">漲跌</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }).join("") + `</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Events
+// ══════════════════════════════════════════════════════════════════════════════
+function renderEvents(events, today) {
+  const todayEvts = (events || []).filter(e => e.date === today);
+  const section   = document.getElementById("events-section");
+  if (todayEvts.length === 0) { section.style.display = "none"; return; }
+  section.style.display = "block";
+
+  const iconMap = {
+    deposit:         ["💰", "#22c55e", "入金"],
+    withdrawal:      ["💸", "#ef4444", "出金"],
+    strategy_switch: ["🔄", "#a78bfa", "策略切換"],
+    strategy_pause:  ["⏸️", "#f59e0b", "策略暫停"],
+    strategy_resume: ["▶️", "#22c55e", "策略恢復"],
+  };
+  document.getElementById("events-content").innerHTML = todayEvts.map(e => {
+    const [icon, color, label] = iconMap[e.type] || ["📌", "#94a3b8", e.type];
+    let detail = "";
+    if (e.type === "deposit" || e.type === "withdrawal") {
+      const amt  = e.amount || 0;
+      detail = ` ${amt >= 0 ? "+" : ""}$${Math.abs(amt).toLocaleString("en-US")}`;
+    } else if (e.type === "strategy_switch") {
+      detail = ` ${e.from_strategy}→${e.to_strategy}`;
+    }
+    const note = e.note ? `<div class="text-xs text-slate-400 mt-1">${e.note}</div>` : "";
+    return `<div class="flex items-start gap-3 py-3 border-b border-slate-700/40">
+      <span class="text-xl">${icon}</span>
+      <div>
+        <span class="font-semibold" style="color:${color}">${label}${detail}</span>
+        ${note}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Trade Log
+// ══════════════════════════════════════════════════════════════════════════════
+function renderTradeLog(log) {
+  if (!log || log.length === 0) {
+    document.getElementById("trade-log").innerHTML = '<div class="text-sm text-slate-500">無交易記錄</div>';
+    return;
+  }
+  document.getElementById("trade-log").innerHTML = log.map(entry => {
+    const orders = (entry.orders || []).map(o => {
+      const c = o.side === "buy" ? "#22c55e" : "#ef4444";
+      const label = o.side === "buy" ? "買入" : "賣出";
+      return `<span class="inline-block mr-3 text-xs"><span style="color:${c};font-weight:600">${label}</span> ${o.symbol} ×${o.qty.toFixed(0)} @$${o.price.toFixed(2)}</span>`;
+    }).join("");
+    return `<div class="border-b border-slate-700/40 py-3">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-sm font-semibold text-slate-300">${entry.date}</span>
+        <span class="text-xs text-slate-400">NAV $${entry.nav.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})} · ${entry.trades_count} 筆</span>
+      </div>
+      <div class="text-slate-400">${orders || '<span class="text-xs text-slate-500">無交易</span>'}</div>
+    </div>`;
+  }).join("");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  錯誤處理
+// ══════════════════════════════════════════════════════════════════════════════
+function showError(msg) {
+  document.getElementById("loading").style.display = "none";
+  document.getElementById("error-banner").style.display = "block";
+  document.getElementById("error-msg").textContent = msg;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  啟動
+// ══════════════════════════════════════════════════════════════════════════════
+main();
+</script>
+</body>
+</html>
