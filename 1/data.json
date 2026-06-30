@@ -4,7 +4,7 @@
     "strategy": "mom_6m_t20",
     "account_id": "1",
     "account_label": "百萬富婆",
-    "generated_at": "2026-06-30T08:47:58Z",
+    "generated_at": "2026-06-30T22:40:34Z",
     "trading_date": "2026-06-30",
     "dry_run": false,
     "strategy_status": "active",
@@ -19,22 +19,22 @@
     ]
   },
   "summary": {
-    "nav": 1046504.58,
+    "nav": 1047711.54,
     "cash": 941318.58,
     "initial_nav": 1050094.44,
     "inception_date": "2026-06-06",
-    "today_change": -118.44,
-    "today_change_pct": -0.0113,
-    "total_return": -3589.86,
-    "total_return_pct": -0.3419,
-    "total_return_pct_twr": -0.3419,
+    "today_change": 1088.52,
+    "today_change_pct": 0.104,
+    "total_return": -2382.9,
+    "total_return_pct": -0.2269,
+    "total_return_pct_twr": -0.2269,
     "net_contribution": 0.0,
     "total_deposited": 0.0,
     "total_withdrawn": 0.0,
-    "investment_gain": -3589.86,
+    "investment_gain": -2382.9,
     "ytd_return_pct": null,
     "monthly_return_pct": null,
-    "max_drawdown_pct": -0.8176,
+    "max_drawdown_pct": -0.8063,
     "sharpe_ratio": null,
     "total_paused_days": 0,
     "is_paused": false,
@@ -77,11 +77,11 @@
       "symbol": "AVGO",
       "qty": 282.0,
       "avg_entry_price": 394.731383,
-      "current_price": 373.0,
-      "market_value": 105186.0,
-      "unrealized_pl": -6128.25,
-      "unrealized_plpc": -5.505,
-      "weight": 10.0512,
+      "current_price": 377.28,
+      "market_value": 106392.96,
+      "unrealized_pl": -4921.29,
+      "unrealized_plpc": -4.421,
+      "weight": 10.1548,
       "in_portfolio": true
     }
   ],
@@ -136,7 +136,7 @@
     },
     {
       "date": "2026-06-30",
-      "nav": 1046504.58
+      "nav": 1047711.54
     }
   ],
   "drawdown": {
@@ -168,7 +168,7 @@
       -0.5637,
       -0.3605,
       -0.8063,
-      -0.8176
+      -0.7032
     ],
     "nasdaq": [
       null,
@@ -204,7 +204,7 @@
   "trade_log": [
     {
       "date": "2026-06-30",
-      "nav": 1046504.58,
+      "nav": 1047711.54,
       "trades_count": 0,
       "portfolio": [
         "AVGO"
@@ -303,8 +303,8 @@
       {
         "rank": 1,
         "symbol": "AVGO",
-        "price": 373.0,
-        "change_pct": -5.51,
+        "price": 377.28,
+        "change_pct": -4.42,
         "market_cap_b": 100.0,
         "in_portfolio": true
       }
@@ -312,8 +312,8 @@
   },
   "events": [],
   "email": {
-    "subject": "[MOM-6m-T20 #1] 2026-06-30 NAV $1,046,505 (-0.01%)",
-    "preheader": "帳戶 #1 · 2026-06-30 · NAV $1,046,505",
+    "subject": "[MOM-6m-T20 #1] 2026-06-30 NAV $1,047,712 (+0.10%)",
+    "preheader": "帳戶 #1 · 2026-06-30 · NAV $1,047,712",
     "dashboard_url": "https://itemhsu.github.io/tech-rebalance-dashboard/mvp_dashboard.html?a=1",
     "sections_rendered": [
       "header",
@@ -341,7 +341,7 @@
       1043357.8,
       1043254.29,
       1042762.23,
-      1055014.75
+      1063370.68
     ],
     "nasdaq": [
       1041175.59,
@@ -356,7 +356,7 @@
       1031748.14,
       1026967.74,
       1024498.16,
-      1045659.14
+      1061598.19
     ]
   }
 }
